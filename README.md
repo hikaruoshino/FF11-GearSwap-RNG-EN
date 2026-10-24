@@ -91,3 +91,7 @@ The base structure of this job file (the file layout, how the gear file is writt
 ## Changelog
 
 * v1.0: first release. DistancePlus is told only when the ranged weapon type changes
+
+## Feedback
+
+A one-line "it works" is welcome too. With a GitHub account you can post from [Issues](../../issues/new/choose).
