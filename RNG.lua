@@ -47,10 +47,20 @@ function job_setup()
     state.RangeWeapons = M{'Annihilator','Fomalhaut','Gandiva','Armageddon','Sparrowhawk'}
 end
 
+-- Remember each lookup by name, so a ranged attack no longer scans every item (tens of thousands) each time.
+-- Names that were not found are remembered too. A gear change just asks for another name, so a stored answer never goes stale.
+local item_id_cache = {}
 function get_item_id_by_name(name)
+    if name == nil then return nil end
+    local cached = item_id_cache[name]
+    if cached ~= nil then return cached or nil end
     for id, item in pairs(res.items) do
-        if item and item.name == name then return id end
+        if item and item.name == name then
+            item_id_cache[name] = id
+            return id
+        end
     end
+    item_id_cache[name] = false
     return nil
 end
 

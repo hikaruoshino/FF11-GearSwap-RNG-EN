@@ -1,4 +1,4 @@
-# FF11-GearSwap-RNG-EN (v1.0, English edition)
+# FF11-GearSwap-RNG-EN (v1.0.1, English edition)
 
 A GearSwap job file for the Ranger in Final Fantasy XI. It checks that you moved before each Hover Shot, swaps the expensive Hauksbok ammo in and out around melee weapon skills, and switches DistancePlus between gun and bow.
 
@@ -90,6 +90,7 @@ The base structure of this job file (the file layout, how the gear file is writt
 
 ## Changelog
 
+* v1.0.1: the ranged weapon lookup no longer scans every item on each ranged attack; the result is remembered by name (same behavior, less work)
 * v1.0: first release. DistancePlus is told only when the ranged weapon type changes
 
 ## Feedback
