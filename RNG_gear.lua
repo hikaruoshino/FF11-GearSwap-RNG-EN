@@ -104,23 +104,7 @@ function init_gear_sets()
     sets.engaged.dual11= {waist="Reiki Yotai",left_ear="Eabani Earring",}
     
     -- Dual Wield 21 (sub DNC)
-    sets.engaged.dual21= set_combine(sets.engaged.dual11,{back={ name="Camulus's Mantle", augments={'DEX+20','Accuracy+20 Attack+20','DEX+10','"Dual Wield"+10','Phys. dmg. taken-10%',}},})
-
-    -- Sets used while a buff is active
-    sets.buff['Double Shot']       = set_combine(sets.midcast.RA,{
-    head="Amini Gapette +2",
-    body="Arc. Jerkin +4",
-    hands="Oshosi Gloves +1",
-    legs="Osh. Trousers +1",
-    feet="Osh. Leggings +1",
-    neck={ name="Scout's Gorget +2", augments={'Path: A',}},
-    waist="Yemaya Belt",
-    left_ear="Dedition Earring",
-    right_ear="Telos Earring",
-    left_ring="Cacoethic Ring +1",
-    right_ring="Crepuscular Ring",
-    back={ name="Belenus's Cape", augments={'AGI+20','Rng.Acc.+20 Rng.Atk.+20','AGI+10','"Store TP"+10',}},
-        })
+    sets.engaged.dual21= set_combine(sets.engaged.dual11,{})
 
     --FC
     sets.precast.FC = {
@@ -150,7 +134,6 @@ function init_gear_sets()
 
     -- Weapon skill: melee damage
     sets.precast.WS.Damage = {
-    ammo="Hauksbok Arrow",
     head="Nyame Helm",
     body="Nyame Mail",
     hands="Nyame Gauntlets",
@@ -188,7 +171,7 @@ function init_gear_sets()
         hands="Nyame Gauntlets",
         legs="Nyame Flanchard",
         feet="Nyame Sollerets",
-        neck={ name="Comm. Charm +2", augments={'Path: A',}},
+        neck="Sibyl Scarf",
         waist="Orpheus's Sash",
         left_ear={ name="Moonshade Earring", augments={'Accuracy+4','TP Bonus +250',}},
         right_ear="Friomisi Earring",
@@ -272,6 +255,22 @@ function init_gear_sets()
     right_ring="Chirich Ring +1",
     back={ name="Belenus's Cape", augments={'AGI+20','Rng.Acc.+20 Rng.Atk.+20','AGI+10','"Store TP"+10',}},
     }
+
+    -- Sets used while a buff is active (defined after sets.midcast.RA so inheritance works)
+    sets.buff['Double Shot']       = set_combine(sets.midcast.RA,{
+    head="Amini Gapette +2",
+    body="Arc. Jerkin +4",
+    hands="Oshosi Gloves +1",
+    legs="Osh. Trousers +1",
+    feet="Osh. Leggings +1",
+    neck={ name="Scout's Gorget +2", augments={'Path: A',}},
+    waist="Yemaya Belt",
+    left_ear="Dedition Earring",
+    right_ear="Telos Earring",
+    left_ring="Cacoethic Ring +1",
+    right_ring="Crepuscular Ring",
+    back={ name="Belenus's Cape", augments={'AGI+20','Rng.Acc.+20 Rng.Atk.+20','AGI+10','"Store TP"+10',}},
+        })
 
     -- Ranged attack
     sets.midcast.RA.Double = {

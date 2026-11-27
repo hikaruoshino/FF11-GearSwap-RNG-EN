@@ -13,7 +13,6 @@ local res = require('resources')
 -- Variables that remember where you last shot (same criterion as the hovershot addon)
 local last_shot_pos = nil       -- Where the last shot finished {x, y}. While nil, the next first shot is not checked
 local last_shot_target = nil    -- ID of the enemy shot last (the stack resets when the enemy changes)
-local hover_move_success = false
 
 local function reset_hover_shot()
     last_shot_pos = nil
@@ -55,7 +54,7 @@ function get_item_id_by_name(name)
     local cached = item_id_cache[name]
     if cached ~= nil then return cached or nil end
     for id, item in pairs(res.items) do
-        if item and item.name == name then
+        if item and (item.name == name or item.ja == name or item.en == name) then
             item_id_cache[name] = id
             return id
         end
@@ -64,31 +63,53 @@ function get_item_id_by_name(name)
     return nil
 end
 
+-- Helper functions for ranged weapon type and matching physical ammo
+local function range_type_of(item_name)
+    local item_id = get_item_id_by_name(item_name)
+    local item = item_id and res.items[item_id]
+    return item and item.range_type or nil
+end
+
+local PHYSICS_AMMO_KEY = {Gun = 'GunPhysics', Bow = 'BowPhysics', Crossbow = 'CrossbowPhysics'}
+local AMMO_TYPE_FOR = {Gun = 'Bullet', Bow = 'Arrow', Crossbow = 'Bolt'}
+local HAUKSBOK_AMMO = {['Hauksbok Arrow'] = true, ['Hauksbok Bullet'] = true}
+
+local function ammo_fits(r_type, ammo_name)
+    if not ammo_name or ammo_name == 'empty' or HAUKSBOK_AMMO[ammo_name] then return false end
+    local item_id = get_item_id_by_name(ammo_name)
+    local item = item_id and res.items[item_id]
+    return item ~= nil and item.ammo_type ~= nil and item.ammo_type == AMMO_TYPE_FOR[r_type]
+end
+
 -------------------------------------------------------------------
 -- Automatic ammo choice for ranged attacks (gun, bow, crossbow)
 -------------------------------------------------------------------
 function job_post_pretarget(spell, action, spellMap, eventArgs)
-    -- Remove the expensive Hauksbok arrow/bullet if it is equipped, so it is not wasted on normal ranged attacks
-    if (player.equipment.ammo == 'Hauksbok Arrow' or player.equipment.ammo == 'Hauksbok Bullet')
-        and spell.name ~= 'Savage Blade' and spell.name ~= 'Aeolian Edge' then
-        send_command('input /equip ammo')
+    if not spell then return end
+    local ammo_chosen = false
+    local equipped_ammo = player and player.equipment and player.equipment.ammo
+    local equipped_range = player and player.equipment and player.equipment.range
+
+    -- Ranged attacks and Archery/Marksmanship weapon skills: pick matching physical ammo before shooting
+    if is_hover_shot_action(spell) then
+        local r_type = gear and range_type_of(equipped_range)
+        local key = r_type and PHYSICS_AMMO_KEY[r_type]
+        local physics = key and gear[key]
+        if physics and (spell.action_type == 'Ranged Attack' or not ammo_fits(r_type, equipped_ammo)) then
+            equip({ammo = physics.name})
+            ammo_chosen = true
+        end
+    elseif spell.name == 'Savage Blade' and gear and gear['Hauksbok Arrow'] then
+        equip({ammo=gear['Hauksbok Arrow'].name})
+        ammo_chosen = true
+    elseif spell.name == 'Aeolian Edge' and gear and gear['Hauksbok Bullet'] then
+        equip({ammo=gear['Hauksbok Bullet'].name})
+        ammo_chosen = true
     end
 
-    if spell.action_type == 'Ranged Attack' then
-        local range_item = player.equipment.range
-        if range_item and gear then
-            local item_id = get_item_id_by_name(range_item)
-            if item_id and res.items[item_id] then
-                local r_type = res.items[item_id].range_type
-                if r_type == "Gun" and gear.GunPhysics then equip({ammo = gear.GunPhysics.name})
-                elseif r_type == "Bow" and gear.BowPhysics then equip({ammo = gear.BowPhysics.name})
-                elseif r_type == "Crossbow" and gear.CrossbowPhysics then equip({ammo = gear.CrossbowPhysics.name}) end
-            end
-        end
-    elseif spell.name == 'Savage Blade' and gear['Hauksbok Arrow'] then
-        equip({ammo=gear['Hauksbok Arrow'].name})
-    elseif spell.name == 'Aeolian Edge' and gear['Hauksbok Bullet'] then
-        equip({ammo=gear['Hauksbok Bullet'].name})
+    -- Remove the expensive Hauksbok arrow/bullet unless we just selected ammo above
+    if not ammo_chosen and equipped_ammo and HAUKSBOK_AMMO[equipped_ammo] then
+        send_command('input /equip ammo')
     end
 end
 
@@ -100,6 +121,14 @@ function job_precast(spell, action, spellMap, eventArgs)
 
     -- Check made right before a ranged attack or an Archery/Marksmanship weapon skill (melee weapon skills are not checked)
     if is_hover_shot_action(spell) then
+        -- Safety stop if Hauksbok ammo is still equipped (no physical ammo found)
+        if player and player.equipment and HAUKSBOK_AMMO[player.equipment.ammo] then
+            eventArgs.cancel = true
+            cancel_spell()
+            add_to_chat(123, '[RNG.lua] Shot cancelled because Hauksbok ammo is equipped (no matching physical ammo found)')
+            return
+        end
+
         -- Get your current position
         local p_mob = windower.ffxi.get_mob_by_target('me')
 
@@ -111,10 +140,8 @@ function job_precast(spell, action, spellMap, eventArgs)
             local dist = math.sqrt((p_mob.x - last_shot_pos.x)^2 + (p_mob.y - last_shot_pos.y)^2)
 
             if dist >= 1.0 then
-                hover_move_success = true
                 add_to_chat(6, '[Hover OK] Moved: ' .. string.format("%.2f", dist) .. ' Ym (stack kept)')
             else
-                hover_move_success = false
                 add_to_chat(123, '[Hover NG] Moved: ' .. string.format("%.2f", dist) .. ' Ym (under 1 Ym, ranged attack cancelled)')
                 
                 -- If you did not move 1 Ym, cancel the ranged attack to keep the stack
@@ -153,8 +180,9 @@ function job_post_aftercast(spell, action, spellMap, eventArgs)
         end
     end
 
-    -- After the melee weapon skill, take the expensive ammo off right away
-    if spell.name == 'Savage Blade' or spell.name == 'Aeolian Edge' then
+    -- After the melee weapon skill, or if Hauksbok ammo remains equipped, take it off right away
+    local equipped_ammo = player and player.equipment and player.equipment.ammo
+    if spell.name == 'Savage Blade' or spell.name == 'Aeolian Edge' or (equipped_ammo and HAUKSBOK_AMMO[equipped_ammo]) then
         send_command('input /equip ammo')
     end
 end
@@ -175,8 +203,8 @@ end)
 -- Automatic DistancePlus mode switching that follows the equipped ranged weapon and the weapon cycle (requires DistancePlus)
 -------------------------------------------------------------------
 -- When `gs c cycle RangeWeapons` changes the ranged weapon,
--- send `//dp gun` or `//dp bow` to DistancePlus.
--- DistancePlus prints 5 chat lines every time it receives `//dp gun`. Sending it on every equipment/status update would flood the chat, so
+-- send `//dp gun`, `//dp bow`, or `//dp xbow` to DistancePlus.
+-- DistancePlus prints 5 chat lines every time it receives a mode command. Sending it on every equipment/status update would flood the chat, so
 -- remember the mode sent last and send only when it changes (after a GearSwap reload it is sent once again)
 local last_dp_mode = nil
 local function set_distanceplus(mode)
@@ -185,16 +213,18 @@ local function set_distanceplus(mode)
     windower.send_command('dp ' .. mode)
 end
 
+local DP_MODE = {Gun = 'gun', Bow = 'bow', Crossbow = 'xbow'}
+
+local function update_distanceplus(item_name)
+    local mode = DP_MODE[range_type_of(item_name) or '']
+    if mode then set_distanceplus(mode) end
+end
+
 function job_state_change(stateField, newValue, oldValue)
     -- When the RangeWeapons selection changes
     if stateField == 'Range Weapons' or stateField == 'RangeWeapons' then
-        if newValue == 'Annihilator' or newValue == 'Fomalhaut' or newValue == 'Armageddon' then
-            -- Gun weapons switch to gun
-            set_distanceplus('gun')
-        elseif newValue == 'Gandiva' then
-            -- Bow weapons switch to bow
-            set_distanceplus('bow')
-        end
+        local entry = gear and gear[newValue]
+        update_distanceplus(type(entry) == 'table' and entry.name or newValue)
     end
 
     -- Also call user_state_change from user-globals.lua, if it exists
@@ -203,16 +233,11 @@ function job_state_change(stateField, newValue, oldValue)
     end
 end
 
--- Also check the equipped ranged weapon whenever equipment or status is updated
+-- Also check the equipped ranged weapon whenever equipment or status is updated (Sparrowhawk is for Savage Blade, excluded)
 function job_update(cmdParams, eventArgs)
     if not player or not player.equipment then return end
     local ranged_weapon = player.equipment.range
-    
-    if ranged_weapon then
-        if ranged_weapon == 'Annihilator' or ranged_weapon == 'Fomalhaut' or ranged_weapon == 'Armageddon' then
-            set_distanceplus('gun')
-        elseif ranged_weapon == 'Gandiva' then
-            set_distanceplus('bow')
-        end
+    if ranged_weapon and not ranged_weapon:find('Sparrowhawk', 1, true) then
+        update_distanceplus(ranged_weapon)
     end
 end
